@@ -3,20 +3,14 @@ services:
     image: ghcr.io/mbrown22073/sgsm:latest
     container_name: game-server-manager
     ports:
-      - "8080:8080"
+      - "8080:80"
     volumes:
       - gsm_data:/app/data          # SQLite DB, uploads, config
       - gsm_steamcmd:/opt/steamcmd  # SteamCMD binaries & cache
       - gsm_servers:/opt/servers    # Installed game servers
     environment:
-      - NODE_ENV=production
-      - PORT=8080
       - DATA_DIR=/app/data
     restart: unless-stopped
-    ulimits:
-      nofile:
-        soft: 65536
-        hard: 65536
 
   # ── Optional: local MySQL (uncomment to use) ──────────────────────────────
   # mysql:

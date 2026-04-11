@@ -1,40 +1,24 @@
-# ─── Stage 1: Build the React frontend ────────────────────────────────────────
-FROM node:20-alpine AS frontend-builder
-
-WORKDIR /build
-COPY frontend/package*.json ./
-RUN npm ci
-COPY frontend/ ./
-RUN npm run build
-# Output: /build/dist
-
-# ─── Stage 2: Production image ────────────────────────────────────────────────
-FROM ubuntu:22.04
+# --- PHP + Apache + SteamCMD --------------------------------------------------
+FROM php:8.2-apache
 
 LABEL maintainer="Game Server Manager"
-LABEL description="Steam CMD Game Server Manager – Docker Edition"
+LABEL description="Steam Game Server Manager - PHP Edition"
 
 ENV DEBIAN_FRONTEND=noninteractive
-ENV NODE_ENV=production
-ENV PORT=8080
-ENV DATA_DIR=/app/data
 
-# ── System dependencies (Node 20, SteamCMD 32-bit libs) ───────────────────────
+# System dependencies
 RUN dpkg --add-architecture i386 && \
     apt-get update && \
     apt-get install -y \
         ca-certificates \
-        curl \
-        gnupg \
-        lib32gcc-s1 \
-        libsdl2-2.0-0:i386 \
-        libstdc++6:i386 \
         wget \
-    && curl -fsSL https://deb.nodesource.com/setup_20.x | bash - \
-    && apt-get install -y nodejs \
+        curl \
+        lib32gcc-s1 \
+        git \
+    && docker-php-ext-install pdo pdo_sqlite \
     && rm -rf /var/lib/apt/lists/*
 
-# ── SteamCMD ──────────────────────────────────────────────────────────────────
+# SteamCMD
 RUN mkdir -p /opt/steamcmd && \
     cd /opt/steamcmd && \
     wget -q https://steamcdn-a.akamaihd.net/client/installer/steamcmd_linux.tar.gz && \
@@ -42,25 +26,23 @@ RUN mkdir -p /opt/steamcmd && \
     rm steamcmd_linux.tar.gz && \
     chmod +x /opt/steamcmd/steamcmd.sh
 
-# ── Non-root user ─────────────────────────────────────────────────────────────
-RUN useradd -ms /bin/bash gsm
+# Apache
+RUN a2enmod rewrite
+COPY apache.conf /etc/apache2/sites-available/000-default.conf
 
-# ── Application ───────────────────────────────────────────────────────────────
-WORKDIR /app
-COPY backend/package*.json ./
-RUN npm ci --omit=dev
+# PHP config
+RUN echo 'upload_max_filesize = 10M' > /usr/local/etc/php/conf.d/uploads.ini && \
+    echo 'post_max_size = 10M' >> /usr/local/etc/php/conf.d/uploads.ini
 
-COPY backend/ ./
-COPY --from=frontend-builder /build/dist ./public
+# Application
+WORKDIR /var/www/html
+COPY . .
 
-# ── Directories & permissions ─────────────────────────────────────────────────
-RUN mkdir -p /app/data/uploads /opt/servers && \
-    chown -R gsm:gsm /app /opt/servers /opt/steamcmd
+# Directories
+RUN mkdir -p /app/data/logs /app/data/uploads /opt/servers && \
+    chown -R www-data:www-data /var/www/html /app /opt/servers /opt/steamcmd && \
+    chmod -R 755 /var/www/html
 
-EXPOSE 8080
+ENV DATA_DIR=/app/data
 
-HEALTHCHECK --interval=30s --timeout=10s --start-period=15s --retries=3 \
-    CMD curl -f http://localhost:8080/api/auth/status || exit 1
-
-USER gsm
-CMD ["node", "server.js"]
+EXPOSE 80
