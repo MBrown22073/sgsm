@@ -5,7 +5,7 @@ function isLoggedIn(): bool {
     return !empty($_SESSION['gsm_user']);
 }
 
-function requireAuth(): never|void {
+function requireAuth(): void {
     if (!isLoggedIn()) {
         jsonError('Unauthorized', 401);
     }
