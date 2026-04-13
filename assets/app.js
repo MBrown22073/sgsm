@@ -271,12 +271,26 @@ async function saveSetupConfig() {
     args = args.replace(m[0], newFull);
   });
 
-  const id = document.getElementById('setup-server-id').value;
-  try {
-    await api(`${BASE}/api/servers.php?id=${id}`, {
+  const id    = document.getElementById('setup-server-id').value;
+  const cfgTa = document.getElementById('setup-config-content');
+  const saves = [];
+
+  // Always save the (possibly updated) launch args
+  saves.push(api(`${BASE}/api/servers.php?id=${id}`, {
+    method: 'PUT',
+    body: JSON.stringify({ launch_args: args }),
+  }));
+
+  // Also save the config file if the textarea was loaded and has content
+  if (cfgTa && cfgTa.value.trim() && cfgTa.dataset.cfgPath) {
+    saves.push(api(`${BASE}/api/file.php?path=${encodeURIComponent(cfgTa.dataset.cfgPath)}`, {
       method: 'PUT',
-      body: JSON.stringify({ launch_args: args }),
-    });
+      body: JSON.stringify({ content: cfgTa.value }),
+    }));
+  }
+
+  try {
+    await Promise.all(saves);
     toast('Configuration saved');
     closeSetupModal();
   } catch (e) {

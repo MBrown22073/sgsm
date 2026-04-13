@@ -91,7 +91,42 @@ if ($method === 'POST' && $id === 0 && $action === '') {
     if (empty(trim($b['app_id'] ?? '')))     jsonError('Steam App ID is required');
     if (!ctype_digit($b['app_id']))          jsonError('App ID must be numeric');
     if (empty(trim($b['install_dir'] ?? ''))) jsonError('Install directory is required');
-    jsonResponse($db->createServer($b), 201);
+    $newServer = $db->createServer($b);
+
+    // Pre-create config.json immediately so the setup modal can load and edit it
+    $args = $newServer['launch_args'] ?? '';
+    if (preg_match('/-config\s+(\S+)/', $args, $cfgM)) {
+        $cfgFile = $cfgM[1];
+        if (!file_exists($cfgFile)) {
+            $cfgDir = dirname($cfgFile);
+            if (!is_dir($cfgDir)) mkdir($cfgDir, 0755, true);
+            $port = (int)($newServer['port'] ?? 2001);
+            $maxP = (int)($newServer['max_players'] ?? 32);
+            file_put_contents($cfgFile, json_encode([
+                'dedicatedServerId'              => '',
+                'region'                         => 'EU',
+                'gameHostBindAddress'             => '',
+                'gameHostBindPort'                => $port,
+                'gameHostRegisterBindAddress'     => '',
+                'gameHostRegisterPort'            => $port,
+                'adminPassword'                  => 'changeme',
+                'game' => [
+                    'name'                       => $newServer['name'],
+                    'password'                   => '',
+                    'scenarioId'                 => '{ECC61978EDCC2B5A}Missions/23_Campaign.conf',
+                    'maxPlayers'                 => $maxP,
+                    'visible'                    => true,
+                    'supportedGameClientTypes'   => ['PLATFORM_PC'],
+                ],
+            ], JSON_PRETTY_PRINT) . "\n");
+        }
+    }
+    // Pre-create profile directory
+    if (preg_match('/-profile\s+(\S+)/', $args, $profM) && !is_dir($profM[1])) {
+        mkdir($profM[1], 0755, true);
+    }
+
+    jsonResponse($newServer, 201);
 }
 
 // ── PUT update ───────────────────────────────────────────────────────────────

@@ -124,7 +124,7 @@
 
 <!-- Post-Create Setup Modal -->
 <div class="modal-overlay" id="setup-modal" style="display:none" onclick="if(event.target===this)closeSetupModal()">
-  <div class="modal">
+  <div class="modal modal-lg">
     <div class="modal-header">
       <span class="modal-title">Server Created — Quick Setup</span>
       <button class="btn btn-ghost btn-icon" onclick="closeSetupModal()">✕</button>
