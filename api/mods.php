@@ -101,62 +101,100 @@ if ($method === 'POST' && !$action) {
     jsonResponse($mod, 201);
 }
 
-// ── POST install (Steam Workshop download via SteamCMD) ───────────────────────
+// ── POST install (Steam Workshop download via SteamCMD container) ────────────
 if ($method === 'POST' && $action === 'install' && $modDbId) {
     $mod    = $db->getMod($modDbId);
     if (!$mod) jsonError('Mod not found', 404);
     if ($mod['source'] !== 'steam') jsonError('Only Steam Workshop mods can be installed this way');
 
     $server     = $db->getServer((int)$mod['server_id']);
-    $steamcmd   = $db->getSetting('steamcmd_path') ?: '/opt/steamcmd/steamcmd.sh';
-    $steamHome  = dirname($steamcmd);
     $appId      = $server['app_id'];
     $workshopId = $mod['mod_id'];
 
-    if (!file_exists($steamcmd)) {
-        require_once __DIR__ . '/../includes/helpers.php';
-        autoInstallSteamCmd($steamcmd);
-    }
+    $steamUser = $db->getSetting('steam_username') ?: '';
+    $steamPass = $db->getSetting('steam_password') ?: '';
+    $useLogin  = !empty($steamUser) && !empty($steamPass);
+    $loginCmd  = $useLogin
+        ? '+login ' . escapeshellarg($steamUser) . ' ' . escapeshellarg($steamPass)
+        : '+login anonymous';
 
-    $logFile = DATA_DIR . '/logs/mod-' . $modDbId . '.log';
-    if (!is_dir(dirname($logFile))) mkdir(dirname($logFile), 0755, true);
-    file_put_contents($logFile, '[' . date('Y-m-d H:i:s') . "] --- Downloading Workshop item $workshopId for app $appId ---\n");
+    $cname = 'gsm-mod-' . $modDbId;
+    $d     = docker();
+    $d->assertAvailable();
 
-    $cmd = sprintf(
-        'HOME=%s nohup %s +login anonymous +workshop_download_item %s %s +quit >> %s 2>&1 & echo $!',
-        escapeshellarg($steamHome),
-        escapeshellarg($steamcmd),
-        escapeshellarg($appId),
-        escapeshellarg($workshopId),
-        escapeshellarg($logFile)
-    );
-    $pid = (int)shell_exec($cmd);
-    if ($pid <= 0) jsonError('Failed to start SteamCMD');
+    // Remove any stale previous container
+    $existing = $d->inspectContainer($cname);
+    if ($existing !== null) $d->removeContainer($cname, true);
+
+    $shCmd = "/home/steam/steamcmd/steamcmd.sh"
+           . " $loginCmd"
+           . " +workshop_download_item " . escapeshellarg($appId)
+           . " " . escapeshellarg($workshopId)
+           . " +quit";
+
+    $hostInstallDir = hostPath(rtrim($server['install_dir'], '/'));
+
+    $containerId = $d->createContainer($cname, [
+        'Image'      => 'steamcmd/steamcmd:latest',
+        'Entrypoint' => ['/bin/sh', '-c'],
+        'Cmd'        => [$shCmd],
+        'WorkingDir' => '/server',
+        'HostConfig' => [
+            'Binds'       => [$hostInstallDir . ':/server'],
+            'NetworkMode' => 'bridge',
+        ],
+        'Labels' => ['gsm.mod_id' => (string)$modDbId],
+    ]);
+    $d->startContainer($containerId);
 
     $db->setModStatus($modDbId, 'installing');
-    jsonResponse(['ok' => true, 'pid' => $pid, 'log' => basename($logFile)]);
+    jsonResponse(['ok' => true, 'container_id' => $containerId]);
 }
 
 // ── GET mod install log ────────────────────────────────────────────────────────
 if ($method === 'GET' && $action === 'log' && $modDbId) {
     $mod = $db->getMod($modDbId);
     if (!$mod) jsonError('Mod not found', 404);
+
+    $offset = (int)($_GET['offset'] ?? 0);
+    $cname  = 'gsm-mod-' . $modDbId;
+
+    // Try to read from the Docker container logs first
+    $containerInfo = docker()->inspectContainer($cname);
+    if ($containerInfo !== null) {
+        $since   = ($offset > 10000) ? $offset : null;
+        $raw     = docker()->getLogs($cname, 500, $since);
+        $lines   = array_values(array_filter(explode("\n", $raw), fn($l) => $l !== ''));
+        $done    = false;
+        if (!($containerInfo['State']['Running'] ?? true)) {
+            // Container has exited — detect result and clean up
+            $done   = true;
+            $status = ($containerInfo['State']['ExitCode'] ?? 1) === 0 ? 'installed' : 'error';
+            // Also check SteamCMD output text for errors even on exit code 0
+            if ($status === 'installed' && str_contains($raw, 'ERROR!')) $status = 'error';
+            $db->setModStatus($modDbId, $status);
+            try { docker()->removeContainer($cname, true); } catch (RuntimeException) {}
+            if ($status === 'installed') {
+                $server = $db->getServer((int)$mod['server_id']);
+                syncArmaConfig($db, $server);
+            }
+        }
+        jsonResponse(['lines' => $lines, 'offset' => time(), 'done' => $done]);
+    }
+
+    // Fallback: file-based log (container already removed or pre-Docker install)
     $logFile = DATA_DIR . '/logs/mod-' . $modDbId . '.log';
-    $offset  = (int)($_GET['offset'] ?? 0);
-    if (!file_exists($logFile)) jsonResponse(['lines' => [], 'offset' => 0]);
+    if (!file_exists($logFile)) jsonResponse(['lines' => [], 'offset' => 0, 'done' => false]);
 
     $content = file_get_contents($logFile, false, null, $offset);
     $lines   = $content === false ? [] : array_filter(explode("\n", $content), fn($l) => $l !== '');
     $newOff  = $offset + strlen((string)$content);
 
-    // Detect completion: SteamCMD prints "Success" or "ERROR" near the end
     $done = false;
     if (str_contains((string)$content, 'Success.') || str_contains((string)$content, 'ERROR!')) {
-        $done = true;
+        $done   = true;
         $status = str_contains((string)$content, 'Success.') ? 'installed' : 'error';
         $db->setModStatus($modDbId, $status);
-
-        // If success, also sync Arma config (mods are already in DB)
         if ($status === 'installed') {
             $server = $db->getServer((int)$mod['server_id']);
             syncArmaConfig($db, $server);
