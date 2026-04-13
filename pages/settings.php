@@ -53,7 +53,31 @@
         <input class="form-control" type="text" id="cfg-servers_path" value="<?= htmlspecialchars($cfg['servers_path'] ?? '') ?>">
         <span class="form-hint">Base directory where game servers are installed.</span>
       </div>
-      <button class="btn btn-primary" onclick="saveSettings(['steamcmd_path','servers_path'])">Save</button>
+      <hr style="margin:20px 0;border-color:var(--border)">
+      <h4 style="margin-bottom:4px">Steam Account Login</h4>
+      <p class="form-hint" style="margin-bottom:12px">
+        Required for games that cannot be installed anonymously (e.g. Conan Exiles, Enshrouded, V Rising).<br>
+        Credentials are stored locally in the database and only used by SteamCMD on this server.<br>
+        <strong>Enable Steam Guard → Mobile Authenticator</strong> on this account — SMS/email 2FA will block automated logins.
+      </p>
+      <div class="form-row">
+        <div class="form-group">
+          <label class="form-label">Steam Username</label>
+          <input class="form-control" type="text" id="cfg-steam_username" autocomplete="off"
+                 value="<?= htmlspecialchars($cfg['steam_username'] ?? '') ?>"
+                 placeholder="Leave blank to use anonymous login">
+        </div>
+        <div class="form-group">
+          <label class="form-label">Steam Password</label>
+          <input class="form-control" type="password" id="cfg-steam_password" autocomplete="new-password"
+                 value="<?= !empty($cfg['steam_password']) ? '••••••••' : '' ?>"
+                 placeholder="Leave blank to use anonymous login"
+                 onfocus="if(this.value==='••••••••')this.value=''"
+                 onblur="if(this.value==='')this.value='<?= !empty($cfg['steam_password']) ? '••••••••' : '' ?>'">
+          <span class="form-hint">Stored encrypted in the local database.</span>
+        </div>
+      </div>
+      <button class="btn btn-primary" onclick="saveSteamSettings()">Save</button>
     </div>
   </div>
 </div>

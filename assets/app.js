@@ -87,6 +87,29 @@ async function saveSettings(keys) {
   }
 }
 
+async function saveSteamSettings() {
+  const saved = document.getElementById('settings-saved');
+  const err   = document.getElementById('settings-error');
+  if (saved) saved.style.display = 'none';
+  if (err)   err.style.display   = 'none';
+  const userEl = document.getElementById('cfg-steam_username');
+  const passEl = document.getElementById('cfg-steam_password');
+  const body = { steamcmd_path: document.getElementById('cfg-steamcmd_path')?.value || '',
+                 servers_path:  document.getElementById('cfg-servers_path')?.value  || '',
+                 steam_username: userEl?.value || '' };
+  // Only send password if it was actually changed (not the placeholder dots)
+  const pw = passEl?.value || '';
+  if (pw && pw !== '••••••••') body.steam_password = pw;
+  try {
+    await api('/api/settings.php', { method: 'POST', body: JSON.stringify(body) });
+    if (saved) { saved.style.display = 'flex'; setTimeout(() => { saved.style.display = 'none'; }, 2500); }
+    toast('Steam settings saved');
+  } catch (e) {
+    if (err) { err.textContent = e.message; err.style.display = 'flex'; }
+    toast(e.message, 'error');
+  }
+}
+
 // ── Upload logo ───────────────────────────────────────────────────────────────
 async function uploadLogo() {
   const input = document.getElementById('logo-upload');
@@ -190,6 +213,20 @@ function applyTemplate(t) {
   setValue('sf-args',  launchArgs);
   setValue('sf-port',  t.port  || '');
   setValue('sf-maxp',  t.max_players || '');
+
+  // Show warning if this game requires a Steam account login
+  let warn = document.getElementById('tpl-login-warning');
+  if (!warn) {
+    warn = document.createElement('div');
+    warn.id = 'tpl-login-warning';
+    warn.className = 'alert alert-warning';
+    warn.style.cssText = 'margin-top:10px;display:none';
+    warn.innerHTML = '⚠️ This game requires a Steam account login to install. '
+      + 'Add your credentials in <strong>Settings → Steam</strong> before clicking Install, '
+      + 'otherwise the download will fail.';
+    document.getElementById('templates-list')?.parentElement?.appendChild(warn);
+  }
+  warn.style.display = t.requires_login ? 'flex' : 'none';
 }
 
 function setValue(id, val) { const el = document.getElementById(id); if (el) el.value = val; }

@@ -194,7 +194,7 @@ function autoInstallSteamCmd(string $steamcmdPath): void {
     shell_exec($steamcmdPath . ' +quit 2>&1');
 }
 
-function installServer(array $server, string $steamcmdPath): int {
+function installServer(array $server, string $steamcmdPath, string $steamUser = '', string $steamPass = ''): int {
     $id         = (int)$server['id'];
     $installDir = $server['install_dir'];
     $appId      = (int)$server['app_id'];
@@ -209,18 +209,30 @@ function installServer(array $server, string $steamcmdPath): int {
     $logFile = DATA_DIR . '/logs/install-' . $id . '.log';
     if (!is_dir(dirname($logFile))) mkdir(dirname($logFile), 0755, true);
 
-    $steamHome = dirname($steamcmdPath);
-    $note = "NOTE: If install fails with 'Missing configuration' or 'No subscription',\n"
-          . "      this game requires a Steam account login and cannot be installed anonymously.\n"
-          . "      Anonymous login only works for free dedicated server tools (e.g. CS2, Valheim, Rust).\n\n";
+    $useLogin = !empty($steamUser) && !empty($steamPass);
+    $loginStr = $useLogin
+        ? '+login ' . escapeshellarg($steamUser) . ' ' . escapeshellarg($steamPass)
+        : '+login anonymous';
+
+    if (!$useLogin) {
+        $note = "NOTE: If install fails with 'Missing configuration' or 'No subscription',\n"
+              . "      this game requires a Steam account login and cannot be installed anonymously.\n"
+              . "      Go to Settings → Steam and enter your Steam credentials.\n\n";
+    } else {
+        $note = "NOTE: Installing with Steam account: $steamUser\n"
+              . "      If prompted for a Steam Guard code, anonymous re-login is not possible.\n"
+              . "      Use a dedicated Steam account with Mobile Authenticator for automated installs.\n\n";
+    }
     file_put_contents($logFile, '[' . date('Y-m-d H:i:s') . "] --- Installing App ID $appId ---\n" . $note);
 
+    $steamHome = dirname($steamcmdPath);
     // Set HOME to the steamcmd dir so SteamCMD can write its cache there
     $cmd = sprintf(
-        'HOME=%s nohup %s +force_install_dir %s +login anonymous +app_update %d validate +quit >> %s 2>&1 & echo $!',
+        'HOME=%s nohup %s +force_install_dir %s %s +app_update %d validate +quit >> %s 2>&1 & echo $!',
         escapeshellarg($steamHome),
         escapeshellarg($steamcmdPath),
         escapeshellarg($installDir),
+        $loginStr,
         $appId,
         escapeshellarg($logFile)
     );
