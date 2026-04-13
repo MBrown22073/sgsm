@@ -62,6 +62,40 @@ function startServer(array $server): int {
         throw new RuntimeException("Install directory does not exist and could not be created: \"$installDir\".");
     }
 
+    // Replace {INSTALL_DIR} placeholder in launch args with the real path
+    $launchArgs = str_replace('{INSTALL_DIR}', rtrim($installDir, '/'), $launchArgs);
+
+    // Auto-create config.json if the args reference one that doesn't exist yet
+    if (preg_match('/-config\s+(\S+)/', $launchArgs, $m)) {
+        $cfgFile = $m[1];
+        if (!file_exists($cfgFile)) {
+            $dir = dirname($cfgFile);
+            if (!is_dir($dir)) mkdir($dir, 0755, true);
+            file_put_contents($cfgFile, json_encode([
+                'dedicatedServerId'              => '',
+                'region'                         => 'EU',
+                'gameHostBindAddress'             => '',
+                'gameHostBindPort'                => (int)($server['port'] ?? 2001),
+                'gameHostRegisterBindAddress'     => '',
+                'gameHostRegisterPort'            => (int)($server['port'] ?? 2001),
+                'adminPassword'                  => 'changeme',
+                'game' => [
+                    'name'                       => $server['name'],
+                    'password'                   => '',
+                    'scenarioId'                 => '{ECC61978EDCC2B5A}Missions/23_Campaign.conf',
+                    'maxPlayers'                 => (int)($server['max_players'] ?? 32),
+                    'visible'                    => true,
+                    'supportedGameClientTypes'   => ['PLATFORM_PC'],
+                ],
+            ], JSON_PRETTY_PRINT) . "\n");
+        }
+    }
+
+    // Auto-create profile directory if referenced in args
+    if (preg_match('/-profile\s+(\S+)/', $launchArgs, $m) && !is_dir($m[1])) {
+        mkdir($m[1], 0755, true);
+    }
+
     // Resolve the executable path
     $execPath = str_starts_with($executable, '/') ? $executable
         : rtrim($installDir, '/') . '/' . ltrim(preg_replace('#^\./#', '', $executable), '/');

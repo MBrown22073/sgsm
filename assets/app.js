@@ -180,11 +180,14 @@ async function loadTemplates() {
 
 function applyTemplate(t) {
   const serversPath = document.getElementById('cfg-servers_path')?.value || '/opt/servers';
+  const installDir  = serversPath + '/' + t.name.toLowerCase().replace(/[^a-z0-9]/g, '-');
+  // Replace {INSTALL_DIR} placeholder in launch args with the actual install directory
+  const launchArgs  = (t.launch_args || '').replace(/\{INSTALL_DIR\}/g, installDir);
   setValue('sf-name',  t.name);
   setValue('sf-appid', t.app_id);
-  setValue('sf-dir',   serversPath + '/' + t.name.toLowerCase().replace(/[^a-z0-9]/g, '-'));
+  setValue('sf-dir',   installDir);
   setValue('sf-exec',  t.launch_executable);
-  setValue('sf-args',  t.launch_args);
+  setValue('sf-args',  launchArgs);
   setValue('sf-port',  t.port  || '');
   setValue('sf-maxp',  t.max_players || '');
 }
