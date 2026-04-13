@@ -2,8 +2,7 @@ services:
   game-server-manager:
     image: ghcr.io/deadmojosites/sgsm:latest
     container_name: game-server-manager
-    ports:
-      - "8080:80"
+    network_mode: host          # Game servers bind ports directly — no per-port mapping needed
     volumes:
       - ./gsm_data:/app/data        # SQLite DB, uploads, config
       - ./gsm_steamcmd:/opt/steamcmd  # SteamCMD binaries & cache

@@ -28,6 +28,9 @@ RUN mkdir -p /opt/steamcmd
 # Apache
 RUN a2enmod rewrite
 COPY apache.conf /etc/apache2/sites-available/000-default.conf
+# Tell Apache to listen on 8080 instead of 80
+RUN sed -i 's/^Listen 80$/Listen 8080/' /etc/apache2/ports.conf && \
+    sed -i 's/^Listen 443$/Listen 443/' /etc/apache2/ports.conf || true
 
 # PHP config
 RUN echo 'upload_max_filesize = 10M' > /usr/local/etc/php/conf.d/uploads.ini && \
@@ -48,7 +51,7 @@ RUN chmod +x /usr/local/bin/docker-entrypoint.sh
 
 ENV DATA_DIR=/app/data
 
-EXPOSE 80
+EXPOSE 8080
 
 ENTRYPOINT ["/usr/local/bin/docker-entrypoint.sh"]
 CMD ["apache2-foreground"]
