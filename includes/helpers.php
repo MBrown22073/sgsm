@@ -101,10 +101,29 @@ function startServer(array $server): int {
         : rtrim($installDir, '/') . '/' . ltrim(preg_replace('#^\./#', '', $executable), '/');
 
     if (!file_exists($execPath)) {
-        throw new RuntimeException(
-            "Executable not found: \"$executable\". " .
-            "The server files may not be installed yet — use the Install button to download them via SteamCMD first."
-        );
+        // Scan the install dir for executables to help the admin find the correct path
+        $found = [];
+        if (is_dir($installDir)) {
+            $rit = new RecursiveIteratorIterator(
+                new RecursiveDirectoryIterator($installDir, FilesystemIterator::SKIP_DOTS),
+                RecursiveIteratorIterator::SELF_FIRST
+            );
+            foreach ($rit as $file) {
+                if (!$file->isFile()) continue;
+                $name = $file->getFilename();
+                $ext  = strtolower($file->getExtension());
+                if ($ext === 'sh' || $ext === '' || is_executable($file->getPathname())) {
+                    // Make path relative to install dir
+                    $rel = './' . ltrim(str_replace($installDir, '', $file->getPathname()), '/');
+                    $found[] = $rel;
+                    if (count($found) >= 20) break;
+                }
+            }
+        }
+        $hint = empty($found)
+            ? 'No files found in install directory — try reinstalling.'
+            : 'Found these executables: ' . implode(', ', $found) . ' — edit the server and update the Launch Executable field.';
+        throw new RuntimeException("Executable not found: \"$executable\". $hint");
     }
     if (!is_executable($execPath)) {
         chmod($execPath, 0755);
