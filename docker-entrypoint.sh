@@ -1,6 +1,11 @@
 #!/bin/bash
 set -e
 
+# Fix Docker socket permissions so www-data can access it
+if [ -S /var/run/docker.sock ]; then
+    chmod 666 /var/run/docker.sock
+fi
+
 # Ensure the data directories exist and are writable by www-data
 # (Docker volumes are mounted as root, so we fix permissions at runtime)
 mkdir -p "${DATA_DIR}/logs" "${DATA_DIR}/uploads" "${DATA_DIR}/backups"
