@@ -325,8 +325,11 @@ function openServerModal(server) {
   setValue('sf-port',  server?.port  || '');
   setValue('sf-maxp',  server?.max_players || '');
   setValue('sf-notes', server?.notes || '');
-  if (!isEdit) loadTemplates();
-  else {
+  if (!isEdit) {
+    const tl = document.getElementById('templates-list');
+    if (tl) tl.closest('div').style.display = ''; // ensure wrapper is visible
+    loadTemplates();
+  } else {
     const tl = document.getElementById('templates-list');
     if (tl) tl.closest('div').style.display = 'none'; // hide templates on edit
   }
