@@ -123,11 +123,14 @@ function installServer(array $server, string $steamcmdPath): int {
 
     $logFile = DATA_DIR . '/logs/install-' . $id . '.log';
     if (!is_dir(dirname($logFile))) mkdir(dirname($logFile), 0755, true);
-    file_put_contents($logFile, '[' . date('Y-m-d H:i:s') . "] --- Installing App ID $appId ---\n");
+
+    $steamHome = dirname($steamcmdPath);
+    $note = "NOTE: If install fails with 'Missing configuration' or 'No subscription',\n"
+          . "      this game requires a Steam account login and cannot be installed anonymously.\n"
+          . "      Anonymous login only works for free dedicated server tools (e.g. CS2, Valheim, Rust).\n\n";
+    file_put_contents($logFile, '[' . date('Y-m-d H:i:s') . "] --- Installing App ID $appId ---\n" . $note);
 
     // Set HOME to the steamcmd dir so SteamCMD can write its cache there
-    // instead of trying to use /var/www (www-data's default home)
-    $steamHome = dirname($steamcmdPath);
     $cmd = sprintf(
         'HOME=%s nohup %s +force_install_dir %s +login anonymous +app_update %d validate +quit >> %s 2>&1 & echo $!',
         escapeshellarg($steamHome),

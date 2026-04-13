@@ -234,7 +234,7 @@ async function submitServerForm(e) {
     notes:             document.getElementById('sf-notes').value.trim(),
   };
   try {
-    const url    = isEdit ? `/api/servers.php?id=${id}` : '/api/servers.php';
+    const url    = isEdit ? `${BASE}/api/servers.php?id=${id}` : `${BASE}/api/servers.php`;
     const method = isEdit ? 'PUT' : 'POST';
     await api(url, { method, body: JSON.stringify(body) });
     closeModal('server-modal');
@@ -252,10 +252,11 @@ async function submitServerForm(e) {
 // ── Server actions (start/stop/restart/install/cancel-install) ────────────────
 async function serverAction(id, action) {
   try {
-    await api(`/api/servers.php?id=${id}&action=${action}`, { method: 'POST' });
+    await api(`${BASE}/api/servers.php?id=${id}&action=${action}`, { method: 'POST' });
     const labels = { start:'Starting', stop:'Stopping', restart:'Restarting', install:'Installing', 'cancel-install':'Cancelling' };
     toast((labels[action] || action) + '…');
-    setTimeout(() => location.reload(), 1000);
+    if (action === 'install') openConsole(id, 'install');
+    else setTimeout(() => location.reload(), 1000);
   } catch (e) { toast(e.message, 'error'); }
 }
 
@@ -277,29 +278,39 @@ function openConsole(id, type) {
   document.getElementById('console-title').textContent = type === 'install' ? 'Install Console' : 'Server Console';
   document.getElementById('console-output').textContent = '';
   openModal('console-modal');
-  openConsoleSSE(id, type, document.getElementById('console-output'));
+  startConsolePolling(id, type, document.getElementById('console-output'));
 }
 
-function openConsoleSSE(id, type, outputEl) {
-  closeConsoleSSE();
+function startConsolePolling(id, type, outputEl) {
+  stopConsolePolling();
+  let offset = 0;
   const url = id
     ? `${BASE}/api/console.php?id=${id}&type=${type}`
-    : `${BASE}/api/console.php?type=${type}`;
-  consoleSSE = new EventSource(url);
-  consoleSSE.onmessage = (e) => {
-    const line = JSON.parse(e.data);
-    outputEl.textContent += line + '\n';
-    outputEl.scrollTop    = outputEl.scrollHeight;
-  };
-  consoleSSE.onerror = () => {
-    outputEl.textContent += '\n[Stream disconnected]\n';
-    closeConsoleSSE();
-  };
+    : `${BASE}/api/console.php?type=update`;
+
+  async function poll() {
+    try {
+      const data = await (await fetch(url + `&offset=${offset}`)).json();
+      if (data.lines && data.lines.length) {
+        data.lines.forEach(line => { outputEl.textContent += line + '\n'; });
+        outputEl.scrollTop = outputEl.scrollHeight;
+      }
+      offset = data.offset ?? offset;
+    } catch {}
+  }
+
+  poll(); // immediate first fetch
+  consoleSSE = setInterval(poll, 1500);
 }
 
-function closeConsoleSSE() { if (consoleSSE) { consoleSSE.close(); consoleSSE = null; } }
+function stopConsolePolling() {
+  if (consoleSSE) { clearInterval(consoleSSE); consoleSSE = null; }
+}
 
 function closeConsole() {
-  closeConsoleSSE();
+  stopConsolePolling();
   closeModal('console-modal');
 }
+
+// Keep old name as alias so any other callers don't break
+function closeConsoleSSE() { stopConsolePolling(); }

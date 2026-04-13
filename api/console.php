@@ -5,60 +5,39 @@ require_once __DIR__ . '/../includes/helpers.php';
 session_start();
 requireAuth();
 
+// Polling-based log reader — returns JSON instantly, no long-running connection.
+// Client calls repeatedly with ?offset=N to get new lines since last read.
+
 $id   = (int)($_GET['id'] ?? 0);
-$type = preg_replace('/[^a-z]/', '', $_GET['type'] ?? 'server'); // 'server' or 'install' or 'update'
+$type = preg_replace('/[^a-z]/', '', $_GET['type'] ?? 'server');
+$offset = max(0, (int)($_GET['offset'] ?? 0));
 
 if ($type === 'update') {
     $logFile = DATA_DIR . '/logs/update.log';
 } elseif ($id > 0 && in_array($type, ['server', 'install'])) {
     $logFile = DATA_DIR . '/logs/' . $type . '-' . $id . '.log';
 } else {
-    http_response_code(400);
-    exit;
+    jsonError('Invalid parameters', 400);
 }
 
-set_time_limit(0);
-header('Content-Type: text/event-stream; charset=utf-8');
-header('Cache-Control: no-cache');
-header('X-Accel-Buffering: no');
+$lines     = [];
+$newOffset = $offset;
 
-if (ob_get_level()) ob_end_clean();
-
-function sse(string $line): void {
-    echo 'data: ' . json_encode($line) . "\n\n";
-    if (ob_get_level()) ob_flush();
-    flush();
-}
-
-if (!file_exists($logFile)) {
-    sse('Waiting for process to start...');
-}
-
-$offset  = 0;
-$maxSecs = 300; // 5-minute stream limit; client reconnects if needed
-$start   = time();
-
-// Ensure PHP detects client disconnection promptly
-ignore_user_abort(false);
-
-while (time() - $start < $maxSecs) {
-    if (connection_aborted()) break;
-
-    clearstatcache(true, $logFile);
-    if (file_exists($logFile)) {
-        $size = filesize($logFile);
-        if ($size > $offset) {
-            $fh   = fopen($logFile, 'rb');
-            fseek($fh, $offset);
-            $data = fread($fh, $size - $offset);
-            fclose($fh);
-            $offset = $size;
-            foreach (explode("\n", $data) as $line) {
-                if ($line !== '') sse($line);
-            }
+clearstatcache(true, $logFile);
+if (file_exists($logFile)) {
+    $size = filesize($logFile);
+    if ($size > $offset) {
+        $fh = fopen($logFile, 'rb');
+        fseek($fh, $offset);
+        $data = fread($fh, $size - $offset);
+        fclose($fh);
+        $newOffset = $size;
+        foreach (explode("\n", $data) as $line) {
+            if ($line !== '') $lines[] = $line;
         }
     }
-    usleep(300000); // poll every 300ms
+} elseif ($offset === 0) {
+    $lines[] = 'Waiting for process to start...';
 }
 
-sse('--- Stream ended (reconnecting) ---');
+jsonResponse(['lines' => $lines, 'offset' => $newOffset]);
