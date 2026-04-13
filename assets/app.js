@@ -440,6 +440,64 @@ function closeConsole() {
 // Keep old name as alias so any other callers don't break
 function closeConsoleSSE() { stopConsolePolling(); }
 
+// ── Config file editor modal ──────────────────────────────────────────────────
+let _configEditorPath = null;
+
+async function openConfigEditor(filePath, serverName) {
+  _configEditorPath = filePath;
+  document.getElementById('config-editor-title').textContent = (serverName || 'Server') + ' — Config File';
+  document.getElementById('config-editor-path').textContent  = filePath;
+  document.getElementById('config-editor-error').style.display = 'none';
+  const ta = document.getElementById('config-editor-content');
+  ta.value = 'Loading…';
+  ta.readOnly = true;
+  document.getElementById('config-editor-save').disabled = true;
+  openModal('config-editor-modal');
+
+  try {
+    const d = await api(`${BASE}/api/file.php?path=${encodeURIComponent(filePath)}`);
+    ta.value    = d.content;
+    ta.readOnly = false;
+    document.getElementById('config-editor-save').disabled = false;
+  } catch (e) {
+    ta.value = '';
+    ta.readOnly = false;
+    document.getElementById('config-editor-save').disabled = false;
+    const errEl = document.getElementById('config-editor-error');
+    errEl.textContent = e.message + ' — you can still write content and save to create the file.';
+    errEl.style.display = 'flex';
+  }
+}
+
+async function saveConfigEditor() {
+  if (!_configEditorPath) return;
+  const ta    = document.getElementById('config-editor-content');
+  const errEl = document.getElementById('config-editor-error');
+  const btn   = document.getElementById('config-editor-save');
+  errEl.style.display = 'none';
+  btn.disabled = true;
+  btn.textContent = 'Saving…';
+  try {
+    await api(`${BASE}/api/file.php?path=${encodeURIComponent(_configEditorPath)}`, {
+      method: 'PUT',
+      body: JSON.stringify({ content: ta.value }),
+    });
+    toast('Config file saved');
+    closeConfigEditor();
+  } catch (e) {
+    errEl.textContent = e.message;
+    errEl.style.display = 'flex';
+  } finally {
+    btn.disabled = false;
+    btn.textContent = 'Save';
+  }
+}
+
+function closeConfigEditor() {
+  _configEditorPath = null;
+  closeModal('config-editor-modal');
+}
+
 // ── Workshop Mods modal ───────────────────────────────────────────────────────
 let _modsServerId  = null;
 let _modsAppId     = null;

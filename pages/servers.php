@@ -39,6 +39,14 @@
           <button class="btn btn-ghost btn-sm" onclick="openConsole(<?= $id ?>, '<?= $consoleType ?>')" title="Console">⌨</button>
           <button class="btn btn-ghost btn-sm" onclick="serverAction(<?= $id ?>,'install')" title="Install/Update">⬇</button>
           <button class="btn btn-ghost btn-sm" onclick="openModsModal(<?= $id ?>, <?= htmlspecialchars(json_encode($s['name']), ENT_QUOTES) ?>, <?= htmlspecialchars(json_encode($s['app_id']), ENT_QUOTES) ?>)" title="Workshop Mods">🧩</button>
+          <?php
+            // Resolve config file path if the server uses -config <path>
+            $resolvedArgs = str_replace('{INSTALL_DIR}', rtrim($s['install_dir'], '/'), $s['launch_args'] ?? '');
+            preg_match('/-config\s+(\S+)/', $resolvedArgs, $cfgArgMatch);
+          ?>
+          <?php if (!empty($cfgArgMatch[1])): ?>
+          <button class="btn btn-ghost btn-sm" onclick="openConfigEditor(<?= htmlspecialchars(json_encode($cfgArgMatch[1]), ENT_QUOTES) ?>, <?= htmlspecialchars(json_encode($s['name']), ENT_QUOTES) ?>)" title="Edit Config File">📄</button>
+          <?php endif; ?>
           <button class="btn btn-ghost btn-sm" onclick="openServerModal(<?= htmlspecialchars(json_encode($s), ENT_QUOTES) ?>)" title="Edit">✎</button>
           <button class="btn btn-danger btn-sm"  onclick="deleteServer(<?= $id ?>, '<?= htmlspecialchars($s['name'], ENT_QUOTES) ?>')" title="Delete">🗑</button>
         </td>
@@ -120,6 +128,27 @@
         <button type="submit" class="btn btn-primary" id="sf-submit">Add Server</button>
       </div>
     </form>
+  </div>
+</div>
+
+<!-- Config File Editor Modal -->
+<div class="modal-overlay" id="config-editor-modal" style="display:none" onclick="if(event.target===this)closeConfigEditor()">
+  <div class="modal modal-lg">
+    <div class="modal-header">
+      <span class="modal-title" id="config-editor-title">Edit Config File</span>
+      <button class="btn btn-ghost btn-icon" onclick="closeConfigEditor()">✕</button>
+    </div>
+    <div class="modal-body">
+      <p class="form-hint" id="config-editor-path" style="margin:0 0 8px;word-break:break-all"></p>
+      <div id="config-editor-error" class="alert alert-error" style="display:none"></div>
+      <textarea id="config-editor-content" class="form-control" rows="24"
+        style="font-family:Consolas,'Courier New',monospace;font-size:.8rem;resize:vertical"
+        placeholder="Loading…"></textarea>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-ghost" onclick="closeConfigEditor()">Cancel</button>
+      <button class="btn btn-primary" id="config-editor-save" onclick="saveConfigEditor()">Save</button>
+    </div>
   </div>
 </div>
 
