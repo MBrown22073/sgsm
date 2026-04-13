@@ -58,7 +58,9 @@ function startServer(array $server): int {
     $launchArgs = $server['launch_args'] ?? '';
 
     if (!$executable) throw new RuntimeException('No launch executable configured. Edit the server to set one.');
-    if (!is_dir($installDir)) throw new RuntimeException("Install directory not found: \"$installDir\". Install the server first.");
+    if (!is_dir($installDir) && !mkdir($installDir, 0755, true)) {
+        throw new RuntimeException("Install directory does not exist and could not be created: \"$installDir\".");
+    }
 
     // Resolve the executable path
     $execPath = str_starts_with($executable, '/') ? $executable
@@ -82,13 +84,42 @@ function startServer(array $server): int {
     return $pid;
 }
 
+function autoInstallSteamCmd(string $steamcmdPath): void {
+    $steamcmdDir = dirname($steamcmdPath);
+    if (!is_dir($steamcmdDir) && !mkdir($steamcmdDir, 0755, true)) {
+        throw new RuntimeException("Cannot create SteamCMD directory: \"$steamcmdDir\". Check permissions.");
+    }
+
+    // Download the SteamCMD tarball
+    $tarball = $steamcmdDir . '/steamcmd_linux.tar.gz';
+    $result  = shell_exec('curl -fsSL -o ' . escapeshellarg($tarball) . ' "https://steamcdn-a.akamaihd.net/client/installer/steamcmd_linux.tar.gz" 2>&1');
+    if (!file_exists($tarball)) {
+        throw new RuntimeException('Failed to download SteamCMD. Ensure the container has internet access.');
+    }
+
+    shell_exec('tar -xzf ' . escapeshellarg($tarball) . ' -C ' . escapeshellarg($steamcmdDir) . ' 2>&1');
+    @unlink($tarball);
+
+    if (!file_exists($steamcmdPath)) {
+        throw new RuntimeException('SteamCMD extraction failed. Could not find steamcmd.sh after download.');
+    }
+    chmod($steamcmdPath, 0755);
+
+    // First-run bootstrap so SteamCMD updates itself
+    shell_exec($steamcmdPath . ' +quit 2>&1');
+}
+
 function installServer(array $server, string $steamcmdPath): int {
     $id         = (int)$server['id'];
     $installDir = $server['install_dir'];
     $appId      = (int)$server['app_id'];
 
     if (!is_dir($installDir)) mkdir($installDir, 0755, true);
-    if (!file_exists($steamcmdPath)) throw new RuntimeException("SteamCMD not found at: \"$steamcmdPath\".");
+
+    // Auto-download SteamCMD if it is not present yet
+    if (!file_exists($steamcmdPath)) {
+        autoInstallSteamCmd($steamcmdPath);
+    }
 
     $logFile = DATA_DIR . '/logs/install-' . $id . '.log';
     if (!is_dir(dirname($logFile))) mkdir(dirname($logFile), 0755, true);
