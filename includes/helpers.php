@@ -72,22 +72,35 @@ function startServer(array $server): int {
             $dir = dirname($cfgFile);
             if (!is_dir($dir)) mkdir($dir, 0755, true);
             file_put_contents($cfgFile, json_encode([
-                'dedicatedServerId'              => '',
-                'region'                         => 'EU',
-                'gameHostBindAddress'             => '',
-                'gameHostBindPort'                => (int)($server['port'] ?? 2001),
-                'gameHostRegisterBindAddress'     => '',
-                'gameHostRegisterPort'            => (int)($server['port'] ?? 2001),
-                'adminPassword'                  => 'changeme',
+                'dedicatedServerId' => '',
+                'region'            => 'EU',
+                'gameHostBindPort'  => (int)($server['port'] ?? 2001),
+                'gameHostRegisterPort' => (int)($server['port'] ?? 2001),
+                'adminPassword'     => 'changeme',
                 'game' => [
-                    'name'                       => $server['name'],
-                    'password'                   => '',
-                    'scenarioId'                 => '{ECC61978EDCC2B5A}Missions/23_Campaign.conf',
-                    'maxPlayers'                 => (int)($server['max_players'] ?? 32),
-                    'visible'                    => true,
-                    'supportedGameClientTypes'   => ['PLATFORM_PC'],
+                    'name'                     => $server['name'],
+                    'password'                 => '',
+                    'scenarioId'               => '{ECC61978EDCC2B5A}Missions/23_Campaign.conf',
+                    'maxPlayers'               => (int)($server['max_players'] ?? 32),
+                    'visible'                  => true,
+                    'supportedGameClientTypes' => ['PLATFORM_PC'],
                 ],
             ], JSON_PRETTY_PRINT) . "\n");
+        } else {
+            // Auto-fix existing Arma Reforger configs — remove fields no longer allowed in DS 1.6+
+            $cfgData = json_decode(file_get_contents($cfgFile), true);
+            if (is_array($cfgData)) {
+                $removed = false;
+                foreach (['gameHostBindAddress', 'gameHostRegisterBindAddress'] as $banned) {
+                    if (array_key_exists($banned, $cfgData)) {
+                        unset($cfgData[$banned]);
+                        $removed = true;
+                    }
+                }
+                if ($removed) {
+                    file_put_contents($cfgFile, json_encode($cfgData, JSON_PRETTY_PRINT) . "\n");
+                }
+            }
         }
     }
 
