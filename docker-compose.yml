@@ -11,9 +11,6 @@ services:
   game-server-manager:
     image: ghcr.io/deadmojosites/sgsm:latest
     container_name: game-server-manager
-    depends_on:
-      binfmt:
-        condition: service_completed_successfully
     ports:
       - "8880:8080"                    # Web UI
     volumes:
