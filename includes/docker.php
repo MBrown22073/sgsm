@@ -207,12 +207,14 @@ class DockerClient {
         return $r['code'] === 200;
     }
 
-    public function pullImage(string $image): void {
-        $parts = explode(':', $image, 2);
-        $this->req('POST', '/images/create', null, [
+    public function pullImage(string $image, string $platform = ''): void {
+        $parts  = explode(':', $image, 2);
+        $params = [
             'fromImage' => $parts[0],
             'tag'       => $parts[1] ?? 'latest',
-        ]);
+        ];
+        if ($platform !== '') $params['platform'] = $platform;
+        $this->req('POST', '/images/create', null, $params);
     }
 
     // ── Volumes ──────────────────────────────────────────────────────────────
