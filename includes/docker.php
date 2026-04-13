@@ -79,9 +79,12 @@ class DockerClient {
     /**
      * Create a container and return its full ID.
      * $config is the full Docker container-create body.
+     * $platform e.g. 'linux/amd64' — sent as query param per Docker API spec.
      */
-    public function createContainer(string $name, array $config): string {
-        $r = $this->req('POST', '/containers/create', $config, ['name' => $name]);
+    public function createContainer(string $name, array $config, string $platform = ''): string {
+        $query = ['name' => $name];
+        if ($platform !== '') $query['platform'] = $platform;
+        $r = $this->req('POST', '/containers/create', $config, $query);
         if ($r['code'] !== 201) {
             $msg = is_array($r['body']) ? ($r['body']['message'] ?? json_encode($r['body'])) : (string)$r['body'];
             throw new RuntimeException("Failed to create container \"$name\": $msg");
