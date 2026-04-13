@@ -5,7 +5,7 @@ services:
     ports:
       - "8080:80"
     volumes:
-      - gsm_data:/app/data          # SQLite DB, uploads, config
+      - ./gsm_data:/app/data        # SQLite DB, uploads, config (bind mount — visible on host)
       - gsm_steamcmd:/opt/steamcmd  # SteamCMD binaries & cache
       - ./gsm_servers:/opt/servers  # Installed game servers (bind mount — visible on host)
     environment:
@@ -40,7 +40,6 @@ services:
   #     - "5432:5432"
 
 volumes:
-  gsm_data:
   gsm_steamcmd:
   # gsm_mysql:
   # gsm_postgres:
