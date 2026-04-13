@@ -33,7 +33,7 @@ WORKDIR /var/www/html
 COPY . .
 
 # Directories
-RUN mkdir -p /app/data/logs /app/data/uploads /opt/servers && \
+RUN mkdir -p /app/data/logs /app/data/uploads /opt/servers /opt/steamcmd && \
     chown -R www-data:www-data /var/www/html /app /opt/servers /opt/steamcmd && \
     chmod -R 755 /var/www/html
 
