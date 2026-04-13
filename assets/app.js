@@ -1,6 +1,38 @@
 /* global */ const BASE = window.GSM_BASE || '';
 let consoleSSE = null;
 
+// ── Live status polling ───────────────────────────────────────────────────────
+// Polls /api/servers.php every 5s when on the servers page and updates badges
+// and action buttons without a full page reload.
+(function startStatusPolling() {
+  if (!document.getElementById('servers-tbody')) return;
+
+  async function pollStatuses() {
+    try {
+      const servers = await (await fetch(BASE + '/api/servers.php')).json();
+      if (!Array.isArray(servers)) return;
+      servers.forEach(s => {
+        const badge = document.getElementById('status-' + s.id);
+        if (!badge) return;
+        const prev = badge.dataset.status || badge.className.match(/status-(\w+)/)?.[1];
+        if (prev === s.status) return; // no change
+
+        // Update badge text and class
+        badge.className = 'status-badge status-' + s.status;
+        badge.textContent = s.status.charAt(0).toUpperCase() + s.status.slice(1);
+        badge.dataset.status = s.status;
+
+        // Reload the page to refresh action buttons when status changes
+        // (only if no modal/console is open)
+        const anyModalOpen = document.querySelector('.modal-overlay[style*="flex"]');
+        if (!anyModalOpen) location.reload();
+      });
+    } catch {}
+  }
+
+  setInterval(pollStatuses, 5000);
+})();
+
 // ── Toast ─────────────────────────────────────────────────────────────────────
 function toast(msg, type = 'success') {
   const el = document.getElementById('toast');
