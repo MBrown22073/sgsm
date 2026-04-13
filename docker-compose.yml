@@ -1,13 +1,4 @@
 services:
-  # Registers x86_64 (amd64) emulation via QEMU binfmt — runs once then exits.
-  # Required on ARM64 hosts (e.g. Synology NAS) to run x86_64 game server binaries.
-  # On amd64 hosts this is a no-op and completes instantly.
-  binfmt:
-    image: tonistiigi/binfmt:latest
-    command: --install amd64
-    privileged: true
-    restart: "no"
-
   game-server-manager:
     image: ghcr.io/deadmojosites/sgsm:latest
     container_name: game-server-manager
