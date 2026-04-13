@@ -333,13 +333,23 @@ function installServer(array $server, string $steamUser = '', string $steamPass 
     // Pull image if not present — force amd64 so we get the x86_64 steamcmd binary
     try { $d->pullImage('steamcmd/steamcmd:latest', 'linux/amd64'); } catch (RuntimeException) {}
 
+    // Persist Steam auth tokens across installs so Steam Guard only needs approval once.
+    // The token is stored in the steam user's home dir inside the container.
+    $steamAuthVolume = 'gsm-steam-auth';
+    if (!$d->volumeExists($steamAuthVolume)) {
+        $d->createVolume($steamAuthVolume);
+    }
+
     $containerId = $d->createContainer($cname, [
         'Image'      => 'steamcmd/steamcmd:latest',
         'Entrypoint' => ['/bin/sh', '-c'],
         'Cmd'        => [$shCmd],
         'WorkingDir' => '/server',
         'HostConfig' => [
-            'Binds'       => [$hostInstallDir . ':/server'],
+            'Binds' => [
+                $hostInstallDir . ':/server',
+                $steamAuthVolume . ':/home/steam/Steam',  // persist auth tokens
+            ],
             'NetworkMode' => 'bridge', // needs internet for download
         ],
         'Labels' => ['gsm.install_id' => (string)$id],
