@@ -4,7 +4,6 @@ services:
     container_name: game-server-manager
     ports:
       - "8880:8080"                    # Web UI
-    user: "root"                       # Run as root so www-data can access docker.sock
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock  # Docker socket — panel manages game containers
       - ./gsm_data:/app/data            # SQLite DB, logs, uploads
