@@ -194,6 +194,108 @@ function applyTemplate(t) {
 
 function setValue(id, val) { const el = document.getElementById(id); if (el) el.value = val; }
 
+// ── Post-create setup modal ───────────────────────────────────────────────────
+// Patterns that identify user-configurable values inside launch_args.
+// Each entry: { label, regex (group 1 = current value), build(newVal) = replacement string }
+const SETUP_PATTERNS = [
+  { label: 'Server Name (in-game)',  regex: /-name\s+'([^']+)'/,                  build: v => `-name '${v}'`              },
+  { label: 'World Name',             regex: /-world\s+'([^']+)'/,                 build: v => `-world '${v}'`             },
+  { label: 'Server Password',        regex: /-password\s+'([^']+)'/,              build: v => `-password '${v}'`          },
+  { label: 'Server Hostname',        regex: /\+server\.hostname\s+"([^"]+)"/,     build: v => `+server.hostname "${v}"`   },
+  { label: 'RCON Password',          regex: /\+rcon\.password\s+(\S+)/,           build: v => `+rcon.password ${v}`       },
+  { label: 'Session Name',           regex: /\?SessionName=([^?&\s]+)/,           build: v => `?SessionName=${v}`         },
+  { label: 'Server Password',        regex: /\?ServerPassword=([^?&\s]+)/,        build: v => `?ServerPassword=${v}`      },
+  { label: 'Server Name',            regex: /-servername\s+"([^"]+)"/,            build: v => `-servername "${v}"`        },
+  { label: 'Admin Password',         regex: /-adminPassword\s+(\S+)/,             build: v => `-adminPassword ${v}`       },
+  { label: 'Server Name',            regex: /\+server\.name\s+"([^"]+)"/,        build: v => `+server.name "${v}"`       },
+];
+
+let _setupServer = null;
+
+function openSetupModal(server) {
+  _setupServer = server;
+  document.getElementById('setup-server-id').value = server.id;
+  const args   = server.launch_args || '';
+  const fields = document.getElementById('setup-fields');
+  fields.innerHTML = '';
+
+  let found = 0;
+  SETUP_PATTERNS.forEach((p, idx) => {
+    const m = args.match(p.regex);
+    if (!m) return;
+    found++;
+    const div   = document.createElement('div');
+    div.className = 'form-group';
+    div.dataset.patternIdx = idx;
+    div.innerHTML =
+      `<label class="form-label">${escHtml(p.label)}</label>` +
+      `<input class="form-control" type="text" id="setup-f-${idx}" value="${escHtml(m[1])}">`;
+    fields.appendChild(div);
+  });
+
+  // Note for config-file-based servers (e.g. Arma Reforger)
+  const cfgMatch = args.match(/-config\s+(\S+)/);
+  if (cfgMatch) {
+    const note = document.createElement('div');
+    note.style.cssText = 'padding:10px 14px;border-radius:var(--radius);font-size:.85rem;background:rgba(0,122,255,.12);color:#6ab0ff;border:1px solid rgba(0,122,255,.2);margin-top:.5rem';
+    note.innerHTML = `<strong>Config file:</strong> A config file will be auto-created at <code>${escHtml(cfgMatch[1])}</code> on first start. `
+      + `Edit it via File Station to change the admin password and other settings.`;
+    fields.appendChild(note);
+  }
+
+  const saveBtn = document.getElementById('setup-save');
+  if (saveBtn) saveBtn.style.display = found > 0 ? '' : 'none';
+
+  if (!found && !cfgMatch) {
+    const hint = document.createElement('p');
+    hint.className = 'form-hint';
+    hint.textContent = 'No configurable fields detected. You can edit the server at any time using the pencil icon.';
+    fields.appendChild(hint);
+  }
+
+  closeModal('server-modal');
+  openModal('setup-modal');
+}
+
+async function saveSetupConfig() {
+  if (!_setupServer) { closeSetupModal(); return; }
+  let args = _setupServer.launch_args || '';
+
+  document.querySelectorAll('#setup-fields .form-group[data-pattern-idx]').forEach(el => {
+    const p      = SETUP_PATTERNS[parseInt(el.dataset.patternIdx)];
+    const input  = el.querySelector('input');
+    if (!p || !input) return;
+    const m      = args.match(p.regex);
+    if (!m) return;
+    const newFull = m[0].replace(m[1], input.value);
+    args = args.replace(m[0], newFull);
+  });
+
+  const id = document.getElementById('setup-server-id').value;
+  try {
+    await api(`${BASE}/api/servers.php?id=${id}`, {
+      method: 'PUT',
+      body: JSON.stringify({ launch_args: args }),
+    });
+    toast('Configuration saved');
+    closeSetupModal();
+  } catch (e) {
+    toast(e.message, 'error');
+  }
+}
+
+function closeSetupModal() {
+  _setupServer = null;
+  closeModal('setup-modal');
+  setTimeout(() => location.reload(), 300);
+}
+
+function escHtml(s) {
+  return String(s)
+    .replace(/&/g, '&amp;').replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+}
+
 // ── Add / Edit server modal ───────────────────────────────────────────────────
 function openServerModal(server) {
   const isEdit = !!server;
@@ -239,10 +341,16 @@ async function submitServerForm(e) {
   try {
     const url    = isEdit ? `${BASE}/api/servers.php?id=${id}` : `${BASE}/api/servers.php`;
     const method = isEdit ? 'PUT' : 'POST';
-    await api(url, { method, body: JSON.stringify(body) });
-    closeModal('server-modal');
-    toast(isEdit ? 'Server updated' : 'Server added');
-    setTimeout(() => location.reload(), 500);
+    const result = await api(url, { method, body: JSON.stringify(body) });
+    if (isEdit) {
+      closeModal('server-modal');
+      toast('Server updated');
+      setTimeout(() => location.reload(), 500);
+    } else {
+      // On create: open setup modal so user can configure passwords etc.
+      toast('Server created');
+      openSetupModal(result);
+    }
   } catch (ex) {
     err.textContent = ex.message;
     err.style.display = 'flex';

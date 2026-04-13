@@ -122,6 +122,27 @@
   </div>
 </div>
 
+<!-- Post-Create Setup Modal -->
+<div class="modal-overlay" id="setup-modal" style="display:none" onclick="if(event.target===this)closeSetupModal()">
+  <div class="modal">
+    <div class="modal-header">
+      <span class="modal-title">Server Created — Quick Setup</span>
+      <button class="btn btn-ghost btn-icon" onclick="closeSetupModal()">✕</button>
+    </div>
+    <div class="modal-body">
+      <div class="alert alert-success" style="margin-bottom:1rem">
+        ✓ Server added! Review and update any passwords or settings below before installing.
+      </div>
+      <input type="hidden" id="setup-server-id">
+      <div id="setup-fields"></div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-ghost" onclick="closeSetupModal()">Skip</button>
+      <button class="btn btn-primary" id="setup-save" onclick="saveSetupConfig()">Save &amp; Continue</button>
+    </div>
+  </div>
+</div>
+
 <!-- Console Modal -->
 <div class="modal-overlay" id="console-modal" style="display:none" onclick="if(event.target===this)closeConsole()">
   <div class="modal modal-xl">
