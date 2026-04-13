@@ -214,9 +214,12 @@ async function serverAction(id, action) {
 async function deleteServer(id, name) {
   if (!confirm(`Delete "${name}"? This cannot be undone.`)) return;
   try {
-    await api(`/api/servers.php?id=${id}`, { method: 'DELETE' });
+    await api(`${BASE}/api/servers.php?id=${id}`, { method: 'DELETE' });
     toast('Server deleted');
-    setTimeout(() => location.reload(), 500);
+    // Remove the row immediately without a full page reload
+    const row = document.getElementById(`server-row-${id}`);
+    if (row) row.remove();
+    else location.reload();
   } catch (e) { toast(e.message, 'error'); }
 }
 

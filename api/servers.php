@@ -106,6 +106,14 @@ if ($method === 'DELETE' && $id > 0) {
     if (!$s) jsonError('Not found', 404);
     if (in_array($s['status'], ['running', 'installing'])) jsonError('Stop the server before deleting it');
     $db->deleteServer($id);
+    // Delete game files from disk if the install directory exists
+    $installDir = $s['install_dir'] ?? '';
+    if ($installDir && is_dir($installDir)) {
+        shell_exec('rm -rf ' . escapeshellarg($installDir));
+    }
+    // Remove logs for this server
+    @unlink(DATA_DIR . '/logs/server-' . $id . '.log');
+    @unlink(DATA_DIR . '/logs/install-' . $id . '.log');
     jsonResponse(['ok' => true]);
 }
 
