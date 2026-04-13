@@ -107,14 +107,31 @@ async function changePassword() {
 
 // ── Run update ────────────────────────────────────────────────────────────────
 async function runUpdate() {
-  const console = document.getElementById('update-console');
-  if (!console) return;
-  console.style.display = 'block';
-  console.textContent   = 'Starting update…\n';
+  const el = document.getElementById('update-console');
+  if (!el) return;
+  el.style.display = 'block';
+  el.textContent   = 'Starting update…\n';
   try {
-    await api('/api/settings.php?action=update', { method: 'POST' });
-    openConsoleSSE(null, 'update', console);
-  } catch (e) { console.textContent += 'Error: ' + e.message; }
+    await api(`${BASE}/api/settings.php?action=update`, { method: 'POST' });
+    // Fetch the log directly — no long-running SSE needed for static instructions
+    const res = await fetch(`${BASE}/api/console.php?type=update`);
+    const reader = res.body.getReader();
+    const decoder = new TextDecoder();
+    let buf = '';
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      buf += decoder.decode(value, { stream: true });
+      // Parse SSE data lines
+      buf.split('\n').forEach(line => {
+        if (line.startsWith('data:')) {
+          try { el.textContent += JSON.parse(line.slice(5).trim()) + '\n'; } catch {}
+        }
+      });
+      // Stop once we see the Done marker
+      if (buf.includes('--- Done ---')) { reader.cancel(); break; }
+    }
+  } catch (e) { el.textContent += 'Error: ' + e.message; }
 }
 
 // ── Templates ─────────────────────────────────────────────────────────────────

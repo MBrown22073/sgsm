@@ -38,6 +38,9 @@ $offset  = 0;
 $maxSecs = 300; // 5-minute stream limit; client reconnects if needed
 $start   = time();
 
+// Ensure PHP detects client disconnection promptly
+ignore_user_abort(false);
+
 while (time() - $start < $maxSecs) {
     if (connection_aborted()) break;
 
