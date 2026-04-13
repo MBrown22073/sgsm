@@ -133,9 +133,20 @@ function startServer(array $server): int {
     if (!is_dir(dirname($logFile))) mkdir(dirname($logFile), 0755, true);
     file_put_contents($logFile, '[' . date('Y-m-d H:i:s') . "] --- Server starting ---\n");
 
+    // Use wine for Windows executables (.exe) if running on Linux
+    $useWine = strtolower(pathinfo($execPath, PATHINFO_EXTENSION)) === 'exe';
+    if ($useWine) {
+        $winePath = trim(shell_exec('which wine 2>/dev/null') ?? '');
+        if (!$winePath) throw new RuntimeException(
+            "This server requires Wine to run on Linux (Windows-only executable). " .
+            "Install Wine in the container: apt-get install -y wine"
+        );
+    }
+
     $cmd = sprintf(
-        'cd %s && nohup %s %s >> %s 2>&1 & echo $!',
+        'cd %s && nohup %s%s %s >> %s 2>&1 & echo $!',
         escapeshellarg($installDir),
+        $useWine ? 'wine ' : '',
         escapeshellarg($execPath),
         $launchArgs,
         escapeshellarg($logFile)

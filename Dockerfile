@@ -17,6 +17,8 @@ RUN dpkg --add-architecture i386 && \
         git \
         libsqlite3-dev \
         libcurl4-openssl-dev \
+        wine \
+        wine32 \
     && docker-php-ext-install pdo pdo_sqlite curl \
     && rm -rf /var/lib/apt/lists/*
 
