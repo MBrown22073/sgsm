@@ -39,6 +39,13 @@ RUN mkdir -p /app/data/logs /app/data/uploads /opt/servers && \
     chown -R www-data:www-data /var/www/html /app /opt/servers /opt/steamcmd && \
     chmod -R 755 /var/www/html
 
+# Entrypoint — fixes volume permissions at runtime before Apache starts
+COPY docker-entrypoint.sh /usr/local/bin/docker-entrypoint.sh
+RUN chmod +x /usr/local/bin/docker-entrypoint.sh
+
 ENV DATA_DIR=/app/data
 
 EXPOSE 80
+
+ENTRYPOINT ["/usr/local/bin/docker-entrypoint.sh"]
+CMD ["apache2-foreground"]
